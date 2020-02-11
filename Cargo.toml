@@ -1,0 +1,18 @@
+[package]
+name = "cef-client"
+version = "1.0.0-alpha.winonly"
+authors = ["Kenton Hamaluik <kenton@rehabtronics.com>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+log = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "libloaderapi", "commctrl", "tlhelp32", "handleapi", "psapi", "errhandlingapi", "winbase", "shellapi"] }
+
+[build-dependencies]
+bindgen = "0.53"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
