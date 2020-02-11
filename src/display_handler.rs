@@ -13,6 +13,7 @@ use super::bindings::{
 pub struct DisplayHandler {
     display_handler: cef_display_handler_t,
     ref_count: AtomicUsize,
+    fullscreen_changed: Option<Box<dyn FnMut(bool)>>,
 }
 
 impl DisplayHandler {
@@ -21,14 +22,17 @@ impl DisplayHandler {
     }
 }
 
-extern "C" fn on_fullscreen_mode_change(
-    _slf: *mut cef_display_handler_t,
+unsafe extern "C" fn on_fullscreen_mode_change(
+    slf: *mut cef_display_handler_t,
     _browser: *mut cef_browser_t,
     fullscreen: i32,
 ) {
     // TODO: make the window actually go fullscreen
     // see: https://stackoverflow.com/a/5299718
-    eprintln!("on_fullscreen_mode_change: {}", fullscreen);
+    let handler = slf as *mut DisplayHandler;
+    if let Some(fullscreen_changed) = &mut (*handler).fullscreen_changed {
+        fullscreen_changed(fullscreen == 1);
+    }
 }
 
 extern "C" fn on_console_message(
@@ -81,9 +85,15 @@ pub fn allocate() -> *mut DisplayHandler {
             on_loading_progress_change: None,
         },
         ref_count: AtomicUsize::new(1),
+        fullscreen_changed: None,
     };
 
     Box::into_raw(Box::from(handler))
+}
+
+pub unsafe fn set_fullscreen_listener<F: FnMut(bool) + 'static>(slf: *mut DisplayHandler, listener: F) {
+    let handler = slf as *mut DisplayHandler;
+    (*handler).fullscreen_changed = Some(Box::from(listener));
 }
 
 extern "C" fn add_ref(base: *mut cef_base_ref_counted_t) {

@@ -11,7 +11,6 @@ use super::display_handler::{self, DisplayHandler};
 use super::life_span_handler::{self, LifeSpanHandler};
 use super::request_handler::{self, RequestHandler};
 
-#[derive(Debug)]
 #[repr(C)]
 pub struct Client {
     client: cef_client_t,
@@ -83,6 +82,11 @@ pub fn allocate() -> *mut Client {
     };
 
     Box::into_raw(Box::from(client))
+}
+
+pub unsafe fn set_fullscreen_listener<F: FnMut(bool) + 'static>(slf: *mut Client, listener: F) {
+    let client = slf as *mut Client;
+    super::display_handler::set_fullscreen_listener((*client).display_handler, listener);
 }
 
 extern "C" fn add_ref(base: *mut cef_base_ref_counted_t) {

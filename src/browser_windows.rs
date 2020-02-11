@@ -8,9 +8,9 @@ use std::ffi::CString;
 use std::ptr::null_mut;
 
 /// The browser, keeping track of everything including its host
-#[derive(Debug)]
 pub struct Browser {
-    browser: *mut cef_browser_t,
+    _browser: *mut cef_browser_t,
+    client: *mut super::client::Client,
     host: *mut cef_browser_host_t,
     pub hwnd: HWND,
 }
@@ -70,10 +70,15 @@ impl Browser {
         };
     
         Browser {
-            browser,
+            _browser: browser,
+            client,
             host,
             hwnd: hwnd as HWND,
         }
+    }
+
+    pub fn set_fullscreen_listener<F: FnMut(bool) + 'static>(&self, listener: F) {
+        unsafe { super::client::set_fullscreen_listener(self.client, listener); }
     }
 
     /// Resize the browser window, call this whenever the host resizes

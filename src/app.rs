@@ -6,7 +6,6 @@ use super::browser_process_handler::{self, BrowserProcessHandler};
 use super::schedule::Schedule;
 use std::sync::Arc;
 
-#[derive(Debug)]
 #[repr(C)]
 pub struct App {
     app: cef_app_t,

@@ -7,7 +7,6 @@ use super::bindings::{
     cef_frame_t, cef_menu_model_t,
 };
 
-#[derive(Debug)]
 #[repr(C)]
 pub struct ContextMenuHandler {
     context_menu_handler: cef_context_menu_handler_t,
