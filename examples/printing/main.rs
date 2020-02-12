@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create our window class
     use winapi::um::winuser::{WNDCLASSW, CS_HREDRAW, CS_VREDRAW, LoadCursorW, IDC_ARROW, RegisterClassW, CreateWindowExW, WS_OVERLAPPEDWINDOW, ShowWindow, SW_SHOW, GetMessageW, TranslateMessage, DispatchMessageW, SetWindowLongPtrW, GetDesktopWindow, GetWindowRect, SetWindowPos, HWND_TOP, GetClientRect };
     use winapi::shared::windef::HBRUSH;
-    let class_name: Vec<u16> = "cef-win-print".encode_utf16().collect();
+    let class_name: Vec<u16> = "cef-win-print\0".encode_utf16().collect();
     let wnd_class = WNDCLASSW {
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(wndproc),
@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe { RegisterClassW(&wnd_class) };
     
     // create the window
-    let window_title: Vec<u16> = "CEF Printing Demo".encode_utf16().collect();
+    let window_title: Vec<u16> = "CEF Printing Demo\0".encode_utf16().collect();
     let hwnd = unsafe {
         CreateWindowExW(
             0,

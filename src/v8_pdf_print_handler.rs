@@ -4,15 +4,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::bindings::{
     cef_base_ref_counted_t, cef_v8handler_t, cef_string_t, cef_v8value_t, size_t,
-    cef_string_userfree_t, cef_string_userfree_utf16_free, cef_browser_host_t, cef_string_utf8_to_utf16
+    cef_string_userfree_t, cef_string_userfree_utf16_free, cef_frame_t
 };
-use super::print_pdf_callback;
 
 #[repr(C)]
 pub struct V8PDFPrintHandler {
     v8_handler: cef_v8handler_t,
     ref_count: AtomicUsize,
-    pub host: Option<*mut cef_browser_host_t>,
+    pub frame: Option<*mut cef_frame_t>,
 }
 
 unsafe extern "C" fn execute(
@@ -51,60 +50,32 @@ unsafe extern "C" fn execute(
             .map(|r| r.unwrap_or(std::char::REPLACEMENT_CHARACTER))
             .collect::<String>();
         log::debug!("printing PDF to path `{}`...", path);
-        cef_string_userfree_utf16_free(cef_path);
 
-        // now get the browser to print!
+        // now send an IPC message to the frame process telling it to print
         let _self = slf as *mut V8PDFPrintHandler;
-        if let Some(host) = (*_self).host {
-            log::debug!("got host: {:p}", host);
-            let host = &mut (*host);
-            // and start printing
-            if let Some(print) = host.print_to_pdf {
-                // first, convert the path to a cef string
-                log::debug!("converting path string to cef string");
-                use std::ffi::CString;
-                let path = path.as_bytes();
-                let path = CString::new(path).unwrap();
-                let mut cef_path = cef_string_t::default();
-                cef_string_utf8_to_utf16(path.as_ptr(), path.to_bytes().len() as u64, &mut cef_path);
+        if let Some(frame) = (*_self).frame {
+            // convert the message name to a CEF string
+            let mut cef_message_name = cef_string_t::default();
+            let message_name = "print_to_pdf".as_bytes();
+            let message_name = std::ffi::CString::new(message_name).unwrap();
+            super::bindings::cef_string_utf8_to_utf16(message_name.as_ptr(), message_name.to_bytes().len() as u64, &mut cef_message_name);
 
-                // determine the settings
-                // note: page size in microns, to get microns from inches, multiply
-                // by 25400.
-                log::debug!("creating settings");
-                let settings = super::bindings::_cef_pdf_print_settings_t {
-                    header_footer_title: cef_string_t::default(), // empty header / footer
-                    header_footer_url: cef_string_t::default(), // empty url
-                    page_width: 215900, // 8.5 inches (letterpaper)
-                    page_height: 279400, // 11 inches (letterpaper)
-                    scale_factor: 100, // scale the page at 100%
-                    margin_top: 25.4, // margins in millimeters (actually ignored becayse of margin type)
-                    margin_right: 25.4,
-                    margin_bottom: 25.4,
-                    margin_left: 25.4,
-                    margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins
-                    header_footer_enabled: 0, // no headers or footers
-                    selection_only: 0, // print everything
-                    landscape: 0, // portrait mode
-                    backgrounds_enabled: 1, // show background colours / graphics
-                };
+            // build the message
+            log::debug!("sending IPC message...");
+            let message = super::bindings::cef_process_message_create(&cef_message_name);
+            let args = ((*message).get_argument_list.expect("get_argument_list is a function"))(message);
+            ((*args).set_size.expect("set_size is a function"))(args, 1);
+            ((*args).set_string.expect("set_string is a function"))(args, 0, cef_path);
 
-                // now a callback when the print is done
-                log::debug!("allocating done callback");
-                let callback = print_pdf_callback::allocate();
-
-                // finally, initiate the print
-                log::debug!("initiating printing...");
-                print(host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
-            }
-            else {
-                log::warn!("print_to_pdf callback is null! NOT printing!");
-            }
+            // send the message
+            ((*frame).send_process_message.expect("send_process_message is a function"))(frame, super::bindings::cef_process_id_t_PID_BROWSER, message);
+            log::debug!("IPC message sent!");
         }
         else {
-            log::error!("browser isn't set!")
+            log::error!("frame isn't set!");
         }
-
+        
+        cef_string_userfree_utf16_free(cef_path);
         1
     }
     else {
@@ -126,7 +97,7 @@ pub fn allocate() -> *mut V8PDFPrintHandler {
             execute: Some(execute),
         },
         ref_count: AtomicUsize::new(1),
-        host: None,
+        frame: None,
     };
 
     Box::into_raw(Box::from(handler))

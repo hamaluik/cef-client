@@ -10,7 +10,7 @@ use super::print_pdf_callback;
 
 /// The browser, keeping track of everything including its host
 pub struct Browser {
-    _browser: *mut cef_browser_t,
+    browser: *mut cef_browser_t,
     client: *mut super::client::Client,
     host: *mut cef_browser_host_t,
     pub hwnd: HWND,
@@ -69,16 +69,15 @@ impl super::Cef {
         let hwnd = unsafe {
             (*host).get_window_handle.unwrap()(host)
         };
-        log::debug!("created browser {:p} with host {:p}", browser, host);
-        //log::debug!("threadid: {:?}", std::thread::current().id());
+        log::debug!("browser {:p} on process {:?} thread {:?}", browser, std::process::id(), std::thread::current().id());
+        log::debug!("host {:p} on process {:?} thread {:?}", host, std::process::id(), std::thread::current().id());
     
         let browser = Browser {
-            _browser: browser,
+            browser,
             client,
             host,
             hwnd: hwnd as HWND,
         };
-
         browser
     }
 }
@@ -105,48 +104,54 @@ impl Browser {
         closed == 1
     }
 
+    pub unsafe fn print_to_pdf_pointer<P: AsRef<std::path::Path>>(browser: *mut cef_browser_t, path: P) {
+        log::debug!("attempting to print to `{}`", path.as_ref().display());
+        
+        // get our browser host
+        log::debug!("browser {:p} on process {:?} thread {:?}", browser, std::process::id(), std::thread::current().id());
+        let host = (*browser).get_host.unwrap()(browser);
+        log::debug!("host {:p} on process {:?} thread {:?}", host, std::process::id(), std::thread::current().id());
+
+        log::debug!("converting path...");
+        // first, convert the path to a cef string
+        let path: String = path.as_ref().display().to_string();
+        let path = path.as_bytes();
+        let path = CString::new(path).unwrap();
+        let mut cef_path = cef_string_t::default();
+        cef_string_utf8_to_utf16(path.as_ptr(), path.to_bytes().len() as u64, &mut cef_path);
+
+        // determine the settings
+        // note: page size in microns, to get microns from inches, multiply
+        // by 25400.
+        // TODO: different paper sizes?
+        log::debug!("building settings");
+        let settings = super::bindings::_cef_pdf_print_settings_t {
+            header_footer_title: cef_string_t::default(), // empty header / footer
+            header_footer_url: cef_string_t::default(), // empty url
+            page_width: 215900, // 8.5 inches (letterpaper)
+            page_height: 279400, // 11 inches (letterpaper)
+            scale_factor: 100, // scale the page at 100%
+            margin_top: 25.4, // margins in millimeters (actually ignored becayse of margin type)
+            margin_right: 25.4,
+            margin_bottom: 25.4,
+            margin_left: 25.4,
+            margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins
+            header_footer_enabled: 0, // no headers or footers
+            selection_only: 0, // print everything
+            landscape: 0, // portrait mode
+            backgrounds_enabled: 1, // show background colours / graphics
+        };
+
+        // now a callback when the print is done
+        log::debug!("allocating callback");
+        let callback = print_pdf_callback::allocate();
+
+        // finally, initiate the print
+        log::debug!("initiating printing...");
+        (*host).print_to_pdf.expect("print_to_pdf is a function")(host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
+    }
+
     pub fn print_to_pdf<P: AsRef<std::path::Path>>(&self, path: P) {
-        log::debug!("attempting to print to {}", path.as_ref().display());
-        let host = unsafe { &(*(self.host)) };
-        if let Some(print) = host.print_to_pdf {
-            // first, convert the path to a cef string
-            let path: String = path.as_ref().display().to_string();
-            let path = path.as_bytes();
-            let path = CString::new(path).unwrap();
-            let mut cef_path = cef_string_t::default();
-            unsafe { cef_string_utf8_to_utf16(path.as_ptr(), path.to_bytes().len() as u64, &mut cef_path); }
-
-            // determine the settings
-            // note: page size in microns, to get microns from inches, multiply
-            // by 25400.
-            let settings = super::bindings::_cef_pdf_print_settings_t {
-                header_footer_title: cef_string_t::default(), // empty header / footer
-                header_footer_url: cef_string_t::default(), // empty url
-                page_width: 215900, // 8.5 inches (letterpaper)
-                page_height: 279400, // 11 inches (letterpaper)
-                scale_factor: 100, // scale the page at 100%
-                margin_top: 25.4, // margins in millimeters (actually ignored becayse of margin type)
-                margin_right: 25.4,
-                margin_bottom: 25.4,
-                margin_left: 25.4,
-                margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins
-                header_footer_enabled: 0, // no headers or footers
-                selection_only: 0, // print everything
-                landscape: 0, // portrait mode
-                backgrounds_enabled: 1, // show background colours / graphics
-            };
-
-            // now a callback when the print is done
-            let callback = print_pdf_callback::allocate();
-
-            // finally, initiate the print
-            log::debug!("initiating printing...");
-            unsafe {
-                print(self.host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
-            }
-        }
-        else {
-            log::warn!("print_to_pdf callback is null! NOT printing!");
-        }
+        unsafe { Browser::print_to_pdf_pointer(self.browser, path); }
     }
 }

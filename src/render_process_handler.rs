@@ -53,14 +53,10 @@ unsafe extern "C" fn on_web_kit_initialized(slf: *mut cef_render_process_handler
     log::debug!("extension registered");
 }
 
-unsafe extern "C" fn on_context_created(slf: *mut cef_render_process_handler_t, browser: *mut cef_browser_t, _frame: *mut cef_frame_t, _context: *mut cef_v8context_t) {
-    // store the browser on our extension handler so it can print
-    log::debug!("on_context_created, phandler: {:p}, browser: {:p}", slf, browser);
-    log::debug!("threadid: {:?}", std::thread::current().id());
+unsafe extern "C" fn on_context_created(slf: *mut cef_render_process_handler_t, _browser: *mut cef_browser_t, frame: *mut cef_frame_t, _context: *mut cef_v8context_t) {
+    // store the frame on our extension handler so it can send an IPC message
     let _self = slf as *mut RenderProcessHandler;
-    let host = (*browser).get_host.unwrap()(browser);
-    log::debug!("host: {:p}", host);
-    (*(*_self).pdf_print_extension).host = Some(host);
+    (*(*_self).pdf_print_extension).frame = Some(frame);
 }
 
 pub fn allocate() -> *mut RenderProcessHandler {

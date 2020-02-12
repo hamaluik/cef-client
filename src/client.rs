@@ -4,7 +4,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::bindings::{
     cef_base_ref_counted_t, cef_client_t, cef_context_menu_handler_t, cef_display_handler_t,
-    cef_life_span_handler_t, cef_request_handler_t,
+    cef_life_span_handler_t, cef_request_handler_t, cef_browser_t, cef_frame_t, cef_process_id_t,
+    cef_process_message_t, cef_string_userfree_t, cef_string_userfree_utf16_free
 };
 use super::context_menu_handler::{self, ContextMenuHandler};
 use super::display_handler::{self, DisplayHandler};
@@ -49,6 +50,44 @@ extern "C" fn get_display_handler(slf: *mut cef_client_t) -> *mut cef_display_ha
     handler as *mut cef_display_handler_t
 }
 
+unsafe extern "C" fn on_process_message_received(
+    _slf: *mut cef_client_t,
+    browser: *mut cef_browser_t,
+    _frame: *mut cef_frame_t,
+    _source_process: cef_process_id_t,
+    message: *mut cef_process_message_t,
+) -> c_int {
+    let cef_message_name: cef_string_userfree_t = ((*message).get_name.expect("get_name is a function"))(message);
+    let chars: *mut u16 = (*cef_message_name).str;
+    let len: usize = (*cef_message_name).length as usize;
+    let chars = std::slice::from_raw_parts(chars, len);
+    let message_name = std::char::decode_utf16(chars.iter().cloned())
+        .map(|r| r.unwrap_or(std::char::REPLACEMENT_CHARACTER))
+        .collect::<String>();
+    cef_string_userfree_utf16_free(cef_message_name);
+
+    if message_name == "print_to_pdf" {
+        // get the path
+        let args = ((*message).get_argument_list.expect("get_argument_list is a function"))(message);
+        let cef_path: cef_string_userfree_t = ((*args).get_string.expect("get_string is a function"))(args, 0);
+        let chars: *mut u16 = (*cef_path).str;
+        let len: usize = (*cef_path).length as usize;
+        let chars = std::slice::from_raw_parts(chars, len);
+        let path = std::char::decode_utf16(chars.iter().cloned())
+            .map(|r| r.unwrap_or(std::char::REPLACEMENT_CHARACTER))
+            .collect::<String>();
+        cef_string_userfree_utf16_free(cef_path);
+
+        super::browser::Browser::print_to_pdf_pointer(browser, path);
+
+        1
+    }
+    else {
+        log::debug!("on_process_message_received: `{}`", message_name);
+        0
+    }
+}
+
 pub fn allocate() -> *mut Client {
     let client = Client {
         client: cef_client_t {
@@ -72,7 +111,7 @@ pub fn allocate() -> *mut Client {
             get_load_handler: None,
             get_render_handler: None,
             get_request_handler: Some(get_request_handler),
-            on_process_message_received: None,
+            on_process_message_received: Some(on_process_message_received),
         },
         ref_count: AtomicUsize::new(1),
         life_span_handler: life_span_handler::allocate(),
