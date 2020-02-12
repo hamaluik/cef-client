@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create our window class
     use winapi::um::winuser::{WNDCLASSW, CS_HREDRAW, CS_VREDRAW, LoadCursorW, IDC_ARROW, RegisterClassW, CreateWindowExW, WS_OVERLAPPEDWINDOW, ShowWindow, SW_SHOW, GetMessageW, TranslateMessage, DispatchMessageW, SetWindowLongPtrW, GetDesktopWindow, GetWindowRect, SetWindowPos, HWND_TOP, GetClientRect };
     use winapi::shared::windef::HBRUSH;
-    let class_name: Vec<u16> = "cef-win-fullscreen".encode_utf16().collect();
+    let class_name: Vec<u16> = "cef-win-print".encode_utf16().collect();
     let wnd_class = WNDCLASSW {
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(wndproc),
@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe { RegisterClassW(&wnd_class) };
     
     // create the window
-    let window_title: Vec<u16> = "CEF Fullscreen Demo".encode_utf16().collect();
+    let window_title: Vec<u16> = "CEF Printing Demo".encode_utf16().collect();
     let hwnd = unsafe {
         CreateWindowExW(
             0,
@@ -154,94 +154,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe { GetClientRect(hwnd, &mut rect); }
     use urlencoding::encode;
     let browser = cef.create_browser("my_cef_window", hwnd, &format!("data:text/html,{}", encode(include_str!("page.html"))), rect.right - rect.left, rect.bottom - rect.top);
-
-    // fullscreen handling
-    let _hwnd = hwnd.clone();
-    use winapi::shared::windef::{ RECT };
-    #[derive(Default)]
-    struct FullscreenState {
-        maximized: bool,
-        rect: RECT,
-    };
-    let mut state = FullscreenState::default();
-    browser.set_fullscreen_listener(move |fullscreen| {
-        use winapi::um::winuser::{ GetWindowLongW, SetWindowLongW, GWL_STYLE, GWL_EXSTYLE, WS_EX_DLGMODALFRAME, WS_EX_WINDOWEDGE, WS_EX_CLIENTEDGE, WS_EX_STATICEDGE, WS_THICKFRAME, WS_CAPTION, GetMonitorInfoW, MONITORINFO, MonitorFromWindow, MONITOR_DEFAULTTONEAREST, SWP_NOZORDER, SWP_NOACTIVATE, SWP_FRAMECHANGED,  GetWindowPlacement, WINDOWPLACEMENT, SW_MAXIMIZE, SC_RESTORE, SendMessageW, WM_SYSCOMMAND, SC_MAXIMIZE };
-
-        // save our state
-        if !fullscreen {
-            // TODO: calculate maximized and restore if we are
-            let mut wp: WINDOWPLACEMENT = WINDOWPLACEMENT::default();
-            wp.length = std::mem::size_of::<WINDOWPLACEMENT>() as u32;
-            unsafe { GetWindowPlacement(_hwnd, &mut wp); }
-            if wp.showCmd == SW_MAXIMIZE as u32 {
-                state.maximized = true;
-                unsafe { SendMessageW(_hwnd, WM_SYSCOMMAND, SC_RESTORE, 0) };
-            }
-            else {
-                state.maximized = false;
-            }
-            unsafe {
-                GetWindowRect(_hwnd, &mut state.rect);
-            }
-        }
-        
-        // https://stackoverflow.com/questions/2382464/win32-full-screen-and-hiding-taskbar/5299718#5299718
-        if fullscreen {
-            unsafe {
-                // update the window styles
-                let style = GetWindowLongW(_hwnd, GWL_STYLE) as u32 & !(WS_CAPTION | WS_THICKFRAME);
-                SetWindowLongW(_hwnd, GWL_STYLE, style as i32);
-                let style = GetWindowLongW(_hwnd, GWL_EXSTYLE) as u32 & !(WS_EX_DLGMODALFRAME |
-                    WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
-                SetWindowLongW(_hwnd, GWL_EXSTYLE, style as i32);
-
-                // make it big
-                let monitor = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTONEAREST);
-                let mut monitor_info: MONITORINFO = MONITORINFO {
-                    cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                    rcMonitor: RECT::default(),
-                    rcWork: RECT::default(),
-                    dwFlags: 0
-                };
-                GetMonitorInfoW(monitor, &mut monitor_info);
-                SetWindowPos(
-                    _hwnd,
-                    ptr::null_mut(),
-                    monitor_info.rcMonitor.left,
-                    monitor_info.rcMonitor.top,
-                    monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
-                    monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
-                );
-            }
-        }
-        else {
-            unsafe {
-                // update styles
-                let style = GetWindowLongW(_hwnd, GWL_STYLE) as u32 | WS_CAPTION | WS_THICKFRAME;
-                SetWindowLongW(_hwnd, GWL_STYLE, style as i32);
-                let style = GetWindowLongW(_hwnd, GWL_EXSTYLE) as u32 | (WS_EX_DLGMODALFRAME |
-                    WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
-                SetWindowLongW(_hwnd, GWL_EXSTYLE, style as i32);
-
-                // make it small
-                SetWindowPos(
-                    _hwnd,
-                    ptr::null_mut(),
-                    state.rect.left,
-                    state.rect.top,
-                    state.rect.right - state.rect.left,
-                    state.rect.bottom - state.rect.top,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
-                );
-
-                // maximized?
-                if state.maximized {
-                    SendMessageW(_hwnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
-                }
-            }
-        }
-    });
 
     // and give the window our data struct
     let mut data: WindowData = WindowData {

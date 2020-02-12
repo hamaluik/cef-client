@@ -1,8 +1,9 @@
 use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::bindings::{cef_app_t, cef_base_ref_counted_t, cef_browser_process_handler_t};
+use super::bindings::{cef_app_t, cef_base_ref_counted_t, cef_browser_process_handler_t, cef_render_process_handler_t};
 use super::browser_process_handler::{self, BrowserProcessHandler};
+use super::render_process_handler::{self, RenderProcessHandler};
 use super::schedule::Schedule;
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ pub struct App {
     app: cef_app_t,
     ref_count: AtomicUsize,
     browser_process_handler: *mut BrowserProcessHandler,
+    render_process_handler: *mut RenderProcessHandler,
 }
 
 impl App {
@@ -24,6 +26,13 @@ extern "C" fn get_browser_process_handler(slf: *mut cef_app_t) -> *mut cef_brows
     let handler = unsafe { (*app).browser_process_handler };
     unsafe { (*handler).inc_ref() };
     handler as *mut cef_browser_process_handler_t
+}
+
+extern "C" fn get_render_process_handler(slf: *mut cef_app_t) -> *mut cef_render_process_handler_t {
+    let app = slf as *mut App;
+    let handler = unsafe { (*app).render_process_handler };
+    unsafe { (*handler).inc_ref() };
+    handler as *mut cef_render_process_handler_t
 }
 
 pub fn allocate(schedule: Arc<Schedule>) -> *mut App {
@@ -40,10 +49,11 @@ pub fn allocate(schedule: Arc<Schedule>) -> *mut App {
             on_register_custom_schemes: None,
             get_resource_bundle_handler: None,
             get_browser_process_handler: Some(get_browser_process_handler),
-            get_render_process_handler: None,
+            get_render_process_handler: Some(get_render_process_handler),
         },
         ref_count: AtomicUsize::new(1),
         browser_process_handler: browser_process_handler::allocate(schedule),
+        render_process_handler: render_process_handler::allocate(),
     };
 
     Box::into_raw(Box::from(app))
@@ -62,8 +72,10 @@ extern "C" fn release(base: *mut cef_base_ref_counted_t) -> i32 {
 
     if count == 0 {
         unsafe {
-            Box::from_raw(app);
-            // TODO: free our handlers here too?
+            let app: Box<App> = Box::from_raw(app as *mut App);
+            // TODO: free our handlers here too
+            Box::from_raw(app.browser_process_handler);
+            Box::from_raw(app.render_process_handler);
         }
         1
     } else {

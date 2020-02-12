@@ -6,6 +6,7 @@ use super::bindings::{
 use winapi::shared::windef::HWND;
 use std::ffi::CString;
 use std::ptr::null_mut;
+use super::print_pdf_callback;
 
 /// The browser, keeping track of everything including its host
 pub struct Browser {
@@ -15,9 +16,9 @@ pub struct Browser {
     pub hwnd: HWND,
 }
 
-impl Browser {
+impl super::Cef {
     /// Create the browser as a child of a standard windows HWND
-    pub fn create(window_name: &str, parent_window: HWND, url: &str, width: i32, height: i32) -> Browser {
+    pub fn create_browser(&mut self, window_name: &str, parent_window: HWND, url: &str, width: i32, height: i32) -> Browser {
         let mut cef_window_name = cef_string_t::default();
         let window_name = window_name.as_bytes();
         let window_name = CString::new(window_name).unwrap();
@@ -68,15 +69,21 @@ impl Browser {
         let hwnd = unsafe {
             (*host).get_window_handle.unwrap()(host)
         };
+        log::debug!("created browser {:p} with host {:p}", browser, host);
+        //log::debug!("threadid: {:?}", std::thread::current().id());
     
-        Browser {
+        let browser = Browser {
             _browser: browser,
             client,
             host,
             hwnd: hwnd as HWND,
-        }
-    }
+        };
 
+        browser
+    }
+}
+
+impl Browser {
     pub fn set_fullscreen_listener<F: FnMut(bool) + 'static>(&self, listener: F) {
         unsafe { super::client::set_fullscreen_listener(self.client, listener); }
     }
@@ -96,5 +103,50 @@ impl Browser {
     pub fn try_close(&self) -> bool {
         let closed = unsafe { (*self.host).try_close_browser.unwrap()(self.host) };
         closed == 1
+    }
+
+    pub fn print_to_pdf<P: AsRef<std::path::Path>>(&self, path: P) {
+        log::debug!("attempting to print to {}", path.as_ref().display());
+        let host = unsafe { &(*(self.host)) };
+        if let Some(print) = host.print_to_pdf {
+            // first, convert the path to a cef string
+            let path: String = path.as_ref().display().to_string();
+            let path = path.as_bytes();
+            let path = CString::new(path).unwrap();
+            let mut cef_path = cef_string_t::default();
+            unsafe { cef_string_utf8_to_utf16(path.as_ptr(), path.to_bytes().len() as u64, &mut cef_path); }
+
+            // determine the settings
+            // note: page size in microns, to get microns from inches, multiply
+            // by 25400.
+            let settings = super::bindings::_cef_pdf_print_settings_t {
+                header_footer_title: cef_string_t::default(), // empty header / footer
+                header_footer_url: cef_string_t::default(), // empty url
+                page_width: 215900, // 8.5 inches (letterpaper)
+                page_height: 279400, // 11 inches (letterpaper)
+                scale_factor: 100, // scale the page at 100%
+                margin_top: 25.4, // margins in millimeters (actually ignored becayse of margin type)
+                margin_right: 25.4,
+                margin_bottom: 25.4,
+                margin_left: 25.4,
+                margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins
+                header_footer_enabled: 0, // no headers or footers
+                selection_only: 0, // print everything
+                landscape: 0, // portrait mode
+                backgrounds_enabled: 1, // show background colours / graphics
+            };
+
+            // now a callback when the print is done
+            let callback = print_pdf_callback::allocate();
+
+            // finally, initiate the print
+            log::debug!("initiating printing...");
+            unsafe {
+                print(self.host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
+            }
+        }
+        else {
+            log::warn!("print_to_pdf callback is null! NOT printing!");
+        }
     }
 }

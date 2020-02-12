@@ -6,12 +6,17 @@ mod context_menu_handler;
 mod display_handler;
 mod life_span_handler;
 mod request_handler;
+mod render_process_handler;
+mod v8_pdf_print_handler;
 mod schedule;
+mod print_pdf_callback;
 
 /// An actual browser within the CEF system
 #[cfg(windows)]
 #[path = "browser_windows.rs"]
-pub mod browser;
+mod browser;
+
+pub use browser::Browser;
 
 use std::mem::size_of;
 use std::ptr::null_mut;
@@ -25,6 +30,7 @@ use bindings::{
 /// The CEF system, including scheduler
 pub struct Cef {
     schedule: Arc<schedule::Schedule>,
+    _app: *mut app::App,
 }
 
 impl Cef {
@@ -74,7 +80,8 @@ impl Cef {
         }
     
         Ok(Cef {
-            schedule
+            schedule,
+            _app: app,
         })
     }
     
