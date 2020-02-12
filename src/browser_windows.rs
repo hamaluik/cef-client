@@ -122,14 +122,14 @@ impl Browser {
         let settings = super::bindings::_cef_pdf_print_settings_t {
             header_footer_title: cef_string_t::default(), // empty header / footer
             header_footer_url: cef_string_t::default(), // empty url
-            page_width: 215900, // 8.5 inches (letterpaper)
-            page_height: 279400, // 11 inches (letterpaper)
-            scale_factor: 100, // scale the page at 100%
-            margin_top: 25.4, // margins in millimeters (actually ignored becayse of margin type)
-            margin_right: 25.4,
-            margin_bottom: 25.4,
-            margin_left: 25.4,
-            margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins
+            page_width: 210000, // 210 mm (a4 paper)
+            page_height: 297000, // 297 mm (a4 paper)
+            scale_factor: 100, // scale the page at 100% (i.e. don't.)
+            margin_top: 0.0, // margins in millimeters (actually ignored because of margin type)
+            margin_right: 0.0,
+            margin_bottom: 0.0,
+            margin_left: 0.0,
+            margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins as defined by chrome, ~1 inch
             header_footer_enabled: 0, // no headers or footers
             selection_only: 0, // print everything
             landscape: 0, // portrait mode
