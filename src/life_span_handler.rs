@@ -19,12 +19,10 @@ impl LifeSpanHandler {
 }
 
 extern "C" fn do_close(_slf: *mut cef_life_span_handler_t, _browser: *mut cef_browser_t) -> c_int {
-    log::debug!("do_close");
     0
 }
 
 unsafe extern "C" fn on_before_close(_slf: *mut cef_life_span_handler_t, _browser: *mut cef_browser_t) {
-    log::debug!("on_before_close");
 }
 
 pub fn allocate() -> *mut LifeSpanHandler {

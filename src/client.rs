@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use super::bindings::{
     cef_base_ref_counted_t, cef_client_t, cef_context_menu_handler_t, cef_display_handler_t,
     cef_life_span_handler_t, cef_request_handler_t, cef_browser_t, cef_frame_t, cef_process_id_t,
-    cef_process_message_t, cef_string_userfree_t, cef_string_userfree_utf16_free
+    cef_process_message_t, cef_string_userfree_t, cef_string_userfree_utf16_free, cef_string_t
 };
 use super::context_menu_handler::{self, ContextMenuHandler};
 use super::display_handler::{self, DisplayHandler};
@@ -53,7 +53,7 @@ extern "C" fn get_display_handler(slf: *mut cef_client_t) -> *mut cef_display_ha
 unsafe extern "C" fn on_process_message_received(
     _slf: *mut cef_client_t,
     browser: *mut cef_browser_t,
-    _frame: *mut cef_frame_t,
+    frame: *mut cef_frame_t,
     _source_process: cef_process_id_t,
     message: *mut cef_process_message_t,
 ) -> c_int {
@@ -78,12 +78,27 @@ unsafe extern "C" fn on_process_message_received(
             .collect::<String>();
         cef_string_userfree_utf16_free(cef_path);
 
-        super::browser::Browser::print_to_pdf_pointer(browser, path);
+        super::browser::Browser::print_to_pdf_pointer(browser, path, Some(Box::from(move |ok| {
+            // now send an IPC message back to the renderer
+            // convert the message name to a CEF string
+            let mut cef_message_name = cef_string_t::default();
+            let message_name = "print_to_pdf_done".as_bytes();
+            let message_name = std::ffi::CString::new(message_name).unwrap();
+            super::bindings::cef_string_utf8_to_utf16(message_name.as_ptr(), message_name.to_bytes().len() as u64, &mut cef_message_name);
+
+            // build the message
+            let message = super::bindings::cef_process_message_create(&cef_message_name);
+            let args = ((*message).get_argument_list.expect("get_argument_list is a function"))(message);
+            ((*args).set_size.expect("set_size is a function"))(args, 1);
+            ((*args).set_bool.expect("set_bool is a function"))(args, 0, ok as i32);
+
+            // send the message
+            ((*frame).send_process_message.expect("send_process_message is a function"))(frame, super::bindings::cef_process_id_t_PID_RENDERER, message);
+        })));
 
         1
     }
     else {
-        log::debug!("on_process_message_received: `{}`", message_name);
         0
     }
 }

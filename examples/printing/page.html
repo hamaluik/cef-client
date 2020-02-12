@@ -5,6 +5,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>CEF Print Demo</title>
         <style>
+            #time {
+                display: None;
+            }
             @media print {
                 html, body {
                     background: black;
@@ -19,14 +22,30 @@
                 a, p {
                     color: white;
                 }
+                #time {
+                    display: block;
+                }
             }
         </style>
+        <script>
+            function doPrint() {
+                var timeElement = document.getElementById("time");
+                timeElement.innerText = "This page was printed at " + (new Date()).toLocaleString();
+                cef.printToPDF('printed_pdf.pdf')
+                    .then(() => {
+                        console.log('done printing!');
+                        timeElement.innerText = "";
+                    })
+                    .catch(() => console.error('failed to print!'));
+            }
+        </script>
     </head>
     <body>
         <script>
         </script>
         <p>
-            <a href="#" onclick="cef.printToPDF('printed_pdf.pdf'); return false;">Click here</a> to print to PDF, or <a href="#" onclick="window.print(); return false;">here</a> to print normally.
+            <a href="#" onclick="doPrint(); return false;">Click here</a> to print to PDF, or <a href="#" onclick="window.print(); return false;">here</a> to print normally.
         </p>
+        <p id="time"></p>
     </body>
 </html>

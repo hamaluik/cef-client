@@ -104,15 +104,10 @@ impl Browser {
         closed == 1
     }
 
-    pub unsafe fn print_to_pdf_pointer<P: AsRef<std::path::Path>>(browser: *mut cef_browser_t, path: P) {
-        log::debug!("attempting to print to `{}`", path.as_ref().display());
-        
+    pub unsafe fn print_to_pdf_pointer<P: AsRef<std::path::Path>>(browser: *mut cef_browser_t, path: P, on_done: Option<Box<dyn FnMut(bool)>>) {
         // get our browser host
-        log::debug!("browser {:p} on process {:?} thread {:?}", browser, std::process::id(), std::thread::current().id());
         let host = (*browser).get_host.unwrap()(browser);
-        log::debug!("host {:p} on process {:?} thread {:?}", host, std::process::id(), std::thread::current().id());
 
-        log::debug!("converting path...");
         // first, convert the path to a cef string
         let path: String = path.as_ref().display().to_string();
         let path = path.as_bytes();
@@ -124,7 +119,6 @@ impl Browser {
         // note: page size in microns, to get microns from inches, multiply
         // by 25400.
         // TODO: different paper sizes?
-        log::debug!("building settings");
         let settings = super::bindings::_cef_pdf_print_settings_t {
             header_footer_title: cef_string_t::default(), // empty header / footer
             header_footer_url: cef_string_t::default(), // empty url
@@ -143,15 +137,13 @@ impl Browser {
         };
 
         // now a callback when the print is done
-        log::debug!("allocating callback");
-        let callback = print_pdf_callback::allocate();
+        let callback = print_pdf_callback::allocate(on_done);
 
         // finally, initiate the print
-        log::debug!("initiating printing...");
         (*host).print_to_pdf.expect("print_to_pdf is a function")(host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
     }
 
-    pub fn print_to_pdf<P: AsRef<std::path::Path>>(&self, path: P) {
-        unsafe { Browser::print_to_pdf_pointer(self.browser, path); }
+    pub fn print_to_pdf<P: AsRef<std::path::Path>>(&self, path: P, on_done: Option<Box<dyn FnMut(bool)>>) {
+        unsafe { Browser::print_to_pdf_pointer(self.browser, path, on_done); }
     }
 }

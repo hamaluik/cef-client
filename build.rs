@@ -81,6 +81,8 @@ fn main() {
             .whitelist_type("cef_v8value_t")
             .whitelist_type("cef_process_id_t")
             .whitelist_type("cef_list_value_t")
+            .whitelist_function("cef_v8context_get_current_context")
+            .whitelist_type("cef_v8context_t")
             .whitelist_function("cef_do_message_loop_work")
             .whitelist_function("cef_enable_highdpi_support")
             .whitelist_function("cef_initialize")

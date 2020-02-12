@@ -9,13 +9,17 @@ use super::bindings::{
 pub struct PDFPrintCallback {
     pdf_print_callback: _cef_pdf_print_callback_t,
     ref_count: AtomicUsize,
+    on_done: Option<Box<dyn FnMut(bool)>>,
 }
 
-unsafe extern "C" fn on_pdf_print_finished(_slf: *mut _cef_pdf_print_callback_t, _path: *const cef_string_t, ok: c_int) {
-    log::debug!("printing done, ok: {}", ok);
+unsafe extern "C" fn on_pdf_print_finished(slf: *mut _cef_pdf_print_callback_t, _path: *const cef_string_t, ok: c_int) {
+    let callback = slf as *mut PDFPrintCallback;
+    if let Some(on_done) = &mut (*callback).on_done {
+        on_done(ok == 1);
+    }
 }
 
-pub fn allocate() -> *mut PDFPrintCallback {
+pub fn allocate(on_done: Option<Box<dyn FnMut(bool)>>) -> *mut PDFPrintCallback {
     let handler = PDFPrintCallback {
         pdf_print_callback: _cef_pdf_print_callback_t {
             base: cef_base_ref_counted_t {
@@ -28,6 +32,7 @@ pub fn allocate() -> *mut PDFPrintCallback {
             on_pdf_print_finished: Some(on_pdf_print_finished),
         },
         ref_count: AtomicUsize::new(1),
+        on_done,
     };
 
     Box::into_raw(Box::from(handler))
