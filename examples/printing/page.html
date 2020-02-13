@@ -30,13 +30,19 @@
         <script>
             function doPrint() {
                 var timeElement = document.getElementById("time");
-                timeElement.innerText = "This page was printed at " + (new Date()).toLocaleString();
-                cef.printToPDF('printed_pdf.pdf')
-                    .then(() => {
-                        console.log('done printing!');
-                        timeElement.innerText = "";
-                    })
-                    .catch(() => console.error('failed to print!'));
+                cef.saveFileDialog("Save As PDF", "printed_pdf.pdf", "PDF Files|.pdf")
+                .then((path) => {
+                    timeElement.innerText = "This page was printed at " + (new Date()).toLocaleString();
+
+                    console.info("saving PDF to path:");
+                    console.info(path);
+                    return cef.printToPDF(path);
+                })
+                .then(() => {
+                    timeElement.innerText = "";
+                    console.log('done printing!');
+                })
+                .catch(() => console.error('failed to print!'));
             }
         </script>
     </head>

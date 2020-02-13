@@ -1,21 +1,21 @@
 use std::mem::size_of;
 use std::os::raw::{c_int};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::ffi::CString;
 
 use super::bindings::{
     cef_base_ref_counted_t, cef_render_process_handler_t,
-    cef_browser_t, cef_frame_t, cef_v8context_t, cef_string_t, cef_string_utf8_to_utf16,
-    cef_register_extension, cef_v8handler_t, cef_process_id_t, cef_process_message_t,
+    cef_browser_t, cef_frame_t, cef_v8context_t, cef_process_id_t, cef_process_message_t,
     cef_string_userfree_t, cef_string_userfree_utf16_free,
 };
 use super::v8_pdf_print_handler::{self, V8PDFPrintHandler};
+use super::v8_file_dialog_handler::{self, V8FileDialogHandler};
 
 #[repr(C)]
 pub struct RenderProcessHandler {
     render_process_handler: cef_render_process_handler_t,
     ref_count: AtomicUsize,
     pdf_print_extension: *mut V8PDFPrintHandler,
+    file_dialog_extension: *mut V8FileDialogHandler,
 }
 
 impl RenderProcessHandler {
@@ -25,28 +25,15 @@ impl RenderProcessHandler {
 }
 
 unsafe extern "C" fn on_web_kit_initialized(slf: *mut cef_render_process_handler_t) {
-    // TODO: register extension?
-    let code = super::v8_pdf_print_handler::CODE.as_bytes();
-    let code = CString::new(code).unwrap();
-    let mut cef_code = cef_string_t::default();
-    cef_string_utf8_to_utf16(code.as_ptr(), code.to_bytes().len() as u64, &mut cef_code);
-
-    let extension_name = "CEF PDF Printer";
-    let extension_name = extension_name.as_bytes();
-    let extension_name = CString::new(extension_name).unwrap();
-    let mut cef_extension_name = cef_string_t::default();
-    cef_string_utf8_to_utf16(extension_name.as_ptr(), extension_name.to_bytes().len() as u64, &mut cef_extension_name);
-
-    let render_process_handler = slf as *mut RenderProcessHandler;
-    let extension = (*render_process_handler).pdf_print_extension;
-    cef_register_extension(&cef_extension_name, &cef_code, extension as *mut cef_v8handler_t);
-    log::debug!("registered pdf printer extension");
+    let _self = slf as *mut RenderProcessHandler;
+    super::v8_pdf_print_handler::register_extension((*_self).pdf_print_extension);
+    super::v8_file_dialog_handler::register_extension((*_self).file_dialog_extension);
 }
 
 unsafe extern "C" fn on_context_created(slf: *mut cef_render_process_handler_t, _browser: *mut cef_browser_t, frame: *mut cef_frame_t, _context: *mut cef_v8context_t) {
-    // store the frame on our extension handler so it can send an IPC message
     let _self = slf as *mut RenderProcessHandler;
     (*(*_self).pdf_print_extension).frame = Some(frame);
+    (*(*_self).file_dialog_extension).frame = Some(frame);
 }
 
 unsafe extern "C" fn on_process_message_received(
@@ -65,16 +52,15 @@ unsafe extern "C" fn on_process_message_received(
         .collect::<String>();
     cef_string_userfree_utf16_free(cef_message_name);
 
-    if message_name == "print_to_pdf_done" {
-        let args = ((*message).get_argument_list.expect("get_argument_list is a function"))(message);
-        let ok: bool = ((*args).get_bool.expect("get_bool is a function"))(args, 0) == 1;
-        super::v8_pdf_print_handler::on_pdf_print_done((*(slf as *mut RenderProcessHandler)).pdf_print_extension, ok);
-        1
+    let _self = slf as *mut RenderProcessHandler;
+    if super::v8_pdf_print_handler::process_message((*_self).pdf_print_extension, &message_name, message) {
+        return 1;
     }
-    else {
-        log::warn!("unhandled process message in renderer: `{}`", message_name);
-        0
+    if super::v8_file_dialog_handler::process_message((*_self).file_dialog_extension, &message_name, message) {
+        return 1;
     }
+    log::warn!("unhandled process message in renderer: `{}`", message_name);
+    0
 }
 
 pub fn allocate() -> *mut RenderProcessHandler {
@@ -100,6 +86,7 @@ pub fn allocate() -> *mut RenderProcessHandler {
         },
         ref_count: AtomicUsize::new(1),
         pdf_print_extension: v8_pdf_print_handler::allocate(),
+        file_dialog_extension: v8_file_dialog_handler::allocate(),
     };
 
     Box::into_raw(Box::from(handler))

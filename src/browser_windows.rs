@@ -2,11 +2,13 @@ use super::bindings::{
     cef_window_info_t, cef_string_t, cef_string_utf8_to_utf16, cef_browser_settings_t,
     cef_state_t_STATE_DISABLED, cef_dictionary_value_create, cef_request_context_get_global_context,
     cef_browser_host_create_browser_sync, cef_browser_host_t, cef_browser_t,
+    cef_string_list_alloc, cef_string_list_append,
 };
 use winapi::shared::windef::HWND;
 use std::ffi::CString;
 use std::ptr::null_mut;
 use super::print_pdf_callback;
+use super::run_file_dialog_callback;
 
 /// The browser, keeping track of everything including its host
 pub struct Browser {
@@ -69,8 +71,8 @@ impl super::Cef {
         let hwnd = unsafe {
             (*host).get_window_handle.unwrap()(host)
         };
-        log::debug!("browser {:p} on process {:?} thread {:?}", browser, std::process::id(), std::thread::current().id());
-        log::debug!("host {:p} on process {:?} thread {:?}", host, std::process::id(), std::thread::current().id());
+        //log::debug!("browser {:p} on process {:?} thread {:?}", browser, std::process::id(), std::thread::current().id());
+        //log::debug!("host {:p} on process {:?} thread {:?}", host, std::process::id(), std::thread::current().id());
     
         let browser = Browser {
             browser,
@@ -143,7 +145,52 @@ impl Browser {
         (*host).print_to_pdf.expect("print_to_pdf is a function")(host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
     }
 
+    pub unsafe fn save_file_dialog_pointer(browser: *mut cef_browser_t, title: String, initial_file_name: String, filter: String, on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>) {
+        // get our browser host
+        let host = (*browser).get_host.unwrap()(browser);
+
+        // convert the title to a cef string
+        let title = title.as_bytes();
+        let title = CString::new(title).unwrap();
+        let mut cef_title = cef_string_t::default();
+        cef_string_utf8_to_utf16(title.as_ptr(), title.to_bytes().len() as u64, &mut cef_title);
+
+        // convert the initial_file_name to a cef string
+        let initial_file_name = initial_file_name.as_bytes();
+        let initial_file_name = CString::new(initial_file_name).unwrap();
+        let mut cef_initial_file_name = cef_string_t::default();
+        cef_string_utf8_to_utf16(initial_file_name.as_ptr(), initial_file_name.to_bytes().len() as u64, &mut cef_initial_file_name);
+
+        // convert the filter to a cef string
+        let filter = filter.as_bytes();
+        let filter = CString::new(filter).unwrap();
+        let mut cef_filter = cef_string_t::default();
+        cef_string_utf8_to_utf16(filter.as_ptr(), filter.to_bytes().len() as u64, &mut cef_filter);
+
+        // build the filter list
+        let filters = cef_string_list_alloc();
+        cef_string_list_append(filters, &cef_filter);
+
+        // and a callback
+        let callback = run_file_dialog_callback::allocate(on_done);
+
+        // and run the dialog
+        (*host).run_file_dialog.expect("run_file_dialog is a function")(
+            host,
+            super::bindings::cef_file_dialog_mode_t_FILE_DIALOG_SAVE,
+            &cef_title,
+            &cef_initial_file_name,
+            filters,
+            0,
+            callback as *mut super::bindings::_cef_run_file_dialog_callback_t
+        );
+    }
+
     pub fn print_to_pdf<P: AsRef<std::path::Path>>(&self, path: P, on_done: Option<Box<dyn FnMut(bool)>>) {
         unsafe { Browser::print_to_pdf_pointer(self.browser, path, on_done); }
+    }
+
+    pub fn save_file_dialog(&self, title: String, initial_file_name: String, filter: String, on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>) {
+        unsafe { Browser::save_file_dialog_pointer(self.browser, title, initial_file_name, filter, on_done); }
     }
 }

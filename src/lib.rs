@@ -7,9 +7,11 @@ mod display_handler;
 mod life_span_handler;
 mod request_handler;
 mod render_process_handler;
-mod v8_pdf_print_handler;
 mod schedule;
+mod v8_pdf_print_handler;
+mod v8_file_dialog_handler;
 mod print_pdf_callback;
+mod run_file_dialog_callback;
 
 /// An actual browser within the CEF system
 #[cfg(windows)]
