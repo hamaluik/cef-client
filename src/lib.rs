@@ -39,7 +39,10 @@ impl Cef {
     /// Initialize the CEF context and deal with forked processes. This should 
     /// generally be called as soon as possible in your application's lifetime
     #[cfg(windows)]
-    pub fn initialize() -> Result<Cef, Box<dyn std::error::Error>> {
+    pub fn initialize(
+        debug_port: Option<u16>,
+        enable_command_line_args: bool,
+    ) -> Result<Cef, Box<dyn std::error::Error>> {
         // collect our args
         let main_args = unsafe {
             cef_main_args_t {
@@ -65,6 +68,10 @@ impl Cef {
         let mut settings = cef_settings_t::default();
         settings.size = size_of::<cef_settings_t>() as u64;
         settings.no_sandbox = 1;
+        if let Some(port) = debug_port {
+            settings.remote_debugging_port = port as i32;
+        }
+        settings.command_line_args_disabled = if enable_command_line_args { 0 } else { 1 };
         settings.multi_threaded_message_loop = 0;
         settings.external_message_pump = 1;
         if cfg!(debug_assertions) {

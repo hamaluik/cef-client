@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .apply()?;
 
     // initialize CEF
-    let mut cef = cef_client::Cef::initialize()?;
+    let mut cef = cef_client::Cef::initialize(Some(8822), true)?;
 
     // load our icon
     use winapi::um::winuser::{MAKEINTRESOURCEW, LoadImageW, IMAGE_ICON, LR_DEFAULTSIZE};
