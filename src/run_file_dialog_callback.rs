@@ -3,7 +3,8 @@ use std::os::raw::{c_int};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use super::bindings::{
     cef_base_ref_counted_t, _cef_run_file_dialog_callback_t, cef_string_list_t,
-    cef_string_t, cef_string_list_value, cef_string_list_size
+    cef_string_list_value, cef_string_list_size, cef_string_userfree_utf16_alloc,
+    cef_string_userfree_t, cef_string_userfree_utf16_free,
 };
 
 #[repr(C)]
@@ -23,7 +24,7 @@ unsafe extern "C" fn on_file_dialog_dismissed(slf: *mut _cef_run_file_dialog_cal
         }
         else {
             // extract the first string from the list (only support a single string for now)
-            let cef_path: *mut cef_string_t = std::ptr::null_mut();
+            let cef_path: cef_string_userfree_t = cef_string_userfree_utf16_alloc();
             if cef_string_list_value(file_paths, 0, cef_path) != 1 {
                 log::warn!("failed to extract first path from file dialog callback");
                 on_done(None);
@@ -37,10 +38,14 @@ unsafe extern "C" fn on_file_dialog_dismissed(slf: *mut _cef_run_file_dialog_cal
             let path = std::char::decode_utf16(chars.iter().cloned())
                 .map(|r| r.unwrap_or(std::char::REPLACEMENT_CHARACTER))
                 .collect::<String>();
+            cef_string_userfree_utf16_free(cef_path);
 
             // and alert our listener
             on_done(Some(std::path::PathBuf::from(path)));
         }
+    }
+    else {
+        log::warn!("no callback registered for run file dialog callback, is this intentional?");
     }
 }
 

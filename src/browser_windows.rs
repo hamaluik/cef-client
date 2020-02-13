@@ -107,6 +107,8 @@ impl Browser {
     }
 
     pub unsafe fn print_to_pdf_pointer<P: AsRef<std::path::Path>>(browser: *mut cef_browser_t, path: P, on_done: Option<Box<dyn FnMut(bool)>>) {
+        log::debug!("printing PDF to path `{}`...", path.as_ref().display());
+
         // get our browser host
         let host = (*browser).get_host.unwrap()(browser);
 
@@ -146,6 +148,8 @@ impl Browser {
     }
 
     pub unsafe fn save_file_dialog_pointer(browser: *mut cef_browser_t, title: String, initial_file_name: String, filter: String, on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>) {
+        log::debug!("launching save file dialog...");
+
         // get our browser host
         let host = (*browser).get_host.unwrap()(browser);
 

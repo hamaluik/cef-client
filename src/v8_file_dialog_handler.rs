@@ -48,7 +48,7 @@ pub unsafe fn register_extension(extension: *mut V8FileDialogHandler) {
 }
 
 pub unsafe fn process_message(slf: *mut V8FileDialogHandler, message_name: &str, message: *mut cef_process_message_t) -> bool {
-    if message_name != "run_file_dialog_done" {
+    if message_name != "save_file_dialog_done" {
         return false;
     }
 

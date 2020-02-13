@@ -66,6 +66,7 @@ unsafe extern "C" fn on_process_message_received(
         .collect::<String>();
     cef_string_userfree_utf16_free(cef_message_name);
 
+    log::debug!("browser process recieved `{}` message", message_name);
     if message_name == "print_to_pdf" {
         // get the path
         let args = ((*message).get_argument_list.expect("get_argument_list is a function"))(message);
@@ -132,6 +133,7 @@ unsafe extern "C" fn on_process_message_received(
         cef_string_userfree_utf16_free(cef_filter);
 
         super::browser::Browser::save_file_dialog_pointer(browser, title, initial_file_name, filter, Some(Box::from(move |path: Option<std::path::PathBuf>| {
+            log::debug!("client save callback");
             // now send an IPC message back to the renderer
             // convert the message name to a CEF string
             let mut cef_message_name = cef_string_t::default();
