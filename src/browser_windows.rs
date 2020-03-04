@@ -1,14 +1,14 @@
 use super::bindings::{
-    cef_window_info_t, cef_string_t, cef_string_utf8_to_utf16, cef_browser_settings_t,
-    cef_state_t_STATE_DISABLED, cef_dictionary_value_create, cef_request_context_get_global_context,
-    cef_browser_host_create_browser_sync, cef_browser_host_t, cef_browser_t,
-    cef_string_list_alloc, cef_string_list_append,
+    cef_browser_host_create_browser_sync, cef_browser_host_t, cef_browser_settings_t,
+    cef_browser_t, cef_dictionary_value_create, cef_request_context_get_global_context,
+    cef_state_t_STATE_DISABLED, cef_string_list_alloc, cef_string_list_append, cef_string_t,
+    cef_string_utf8_to_utf16, cef_window_info_t,
 };
-use winapi::shared::windef::HWND;
-use std::ffi::CString;
-use std::ptr::null_mut;
 use super::print_pdf_callback;
 use super::run_file_dialog_callback;
+use std::ffi::CString;
+use std::ptr::null_mut;
+use winapi::shared::windef::HWND;
 
 /// The browser, keeping track of everything including its host
 pub struct Browser {
@@ -20,12 +20,27 @@ pub struct Browser {
 
 impl super::Cef {
     /// Create the browser as a child of a standard windows HWND
-    pub fn create_browser(&mut self, window_name: &str, parent_window: HWND, url: &str, width: i32, height: i32) -> Browser {
+    pub fn create_browser(
+        &mut self,
+        window_name: &str,
+        parent_window: HWND,
+        url: &str,
+        width: i32,
+        height: i32,
+    ) -> Browser {
         let mut cef_window_name = cef_string_t::default();
         let window_name = window_name.as_bytes();
         let window_name = CString::new(window_name).unwrap();
-        unsafe { cef_string_utf8_to_utf16(window_name.as_ptr(), window_name.to_bytes().len() as u64, &mut cef_window_name); }
-        use winapi::um::winuser::{WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_TABSTOP, WS_VISIBLE};
+        unsafe {
+            cef_string_utf8_to_utf16(
+                window_name.as_ptr(),
+                window_name.to_bytes().len() as u64,
+                &mut cef_window_name,
+            );
+        }
+        use winapi::um::winuser::{
+            WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_TABSTOP, WS_VISIBLE,
+        };
         let window_info = cef_window_info_t {
             ex_style: 0,
             window_name: cef_window_name,
@@ -41,19 +56,17 @@ impl super::Cef {
             external_begin_frame_enabled: 0,
             window: null_mut(),
         };
-    
         let client = super::client::allocate();
-    
         let mut cef_url = cef_string_t::default();
         let url = url.as_bytes();
         let url = CString::new(url).unwrap();
-        unsafe { cef_string_utf8_to_utf16(url.as_ptr(), url.to_bytes().len() as u64, &mut cef_url); }
-    
+        unsafe {
+            cef_string_utf8_to_utf16(url.as_ptr(), url.to_bytes().len() as u64, &mut cef_url);
+        }
         let mut browser_settings = cef_browser_settings_t::default();
         browser_settings.databases = cef_state_t_STATE_DISABLED;
         browser_settings.local_storage = cef_state_t_STATE_DISABLED;
         browser_settings.application_cache = cef_state_t_STATE_DISABLED;
-        
         let browser = unsafe {
             cef_browser_host_create_browser_sync(
                 &window_info,
@@ -61,19 +74,14 @@ impl super::Cef {
                 &cef_url,
                 &browser_settings,
                 cef_dictionary_value_create(),
-                cef_request_context_get_global_context()
+                cef_request_context_get_global_context(),
             )
         };
-    
-        let host = unsafe {
-            (*browser).get_host.unwrap()(browser)
-        };
-        let hwnd = unsafe {
-            (*host).get_window_handle.unwrap()(host)
-        };
+
+        let host = unsafe { (*browser).get_host.unwrap()(browser) };
+        let hwnd = unsafe { (*host).get_window_handle.unwrap()(host) };
         //log::debug!("browser {:p} on process {:?} thread {:?}", browser, std::process::id(), std::thread::current().id());
         //log::debug!("host {:p} on process {:?} thread {:?}", host, std::process::id(), std::thread::current().id());
-    
         let browser = Browser {
             browser,
             client,
@@ -86,7 +94,9 @@ impl super::Cef {
 
 impl Browser {
     pub fn set_fullscreen_listener<F: FnMut(bool) + 'static>(&self, listener: F) {
-        unsafe { super::client::set_fullscreen_listener(self.client, listener); }
+        unsafe {
+            super::client::set_fullscreen_listener(self.client, listener);
+        }
     }
 
     /// Resize the browser window, call this whenever the host resizes
@@ -106,7 +116,11 @@ impl Browser {
         closed == 1
     }
 
-    pub unsafe fn print_to_pdf_pointer<P: AsRef<std::path::Path>>(browser: *mut cef_browser_t, path: P, on_done: Option<Box<dyn FnMut(bool)>>) {
+    pub unsafe fn print_to_pdf_pointer<P: AsRef<std::path::Path>>(
+        browser: *mut cef_browser_t,
+        path: P,
+        on_done: Option<Box<dyn FnMut(bool)>>,
+    ) {
         log::debug!("printing PDF to path `{}`...", path.as_ref().display());
 
         // get our browser host
@@ -125,30 +139,42 @@ impl Browser {
         // TODO: different paper sizes?
         let settings = super::bindings::_cef_pdf_print_settings_t {
             header_footer_title: cef_string_t::default(), // empty header / footer
-            header_footer_url: cef_string_t::default(), // empty url
-            page_width: 210000, // 210 mm (a4 paper)
-            page_height: 297000, // 297 mm (a4 paper)
-            scale_factor: 100, // scale the page at 100% (i.e. don't.)
+            header_footer_url: cef_string_t::default(),   // empty url
+            page_width: 210000,                           // 210 mm (a4 paper)
+            page_height: 297000,                          // 297 mm (a4 paper)
+            scale_factor: 100,                            // scale the page at 100% (i.e. don't.)
             margin_top: 0.0, // margins in millimeters (actually ignored because of margin type)
             margin_right: 0.0,
             margin_bottom: 0.0,
             margin_left: 0.0,
             margin_type: super::bindings::cef_pdf_print_margin_type_t_PDF_PRINT_MARGIN_DEFAULT, // default margins as defined by chrome, ~1 inch
             header_footer_enabled: 0, // no headers or footers
-            selection_only: 0, // print everything
-            landscape: 0, // portrait mode
-            backgrounds_enabled: 1, // show background colours / graphics
+            selection_only: 0,        // print everything
+            landscape: 0,             // portrait mode
+            backgrounds_enabled: 1,   // show background colours / graphics
         };
 
         // now a callback when the print is done
         let callback = print_pdf_callback::allocate(on_done);
 
         // finally, initiate the print
-        (*host).print_to_pdf.expect("print_to_pdf is a function")(host, &mut cef_path, &settings, callback as *mut super::bindings::_cef_pdf_print_callback_t);
+        (*host).print_to_pdf.expect("print_to_pdf is a function")(
+            host,
+            &mut cef_path,
+            &settings,
+            callback as *mut super::bindings::_cef_pdf_print_callback_t,
+        );
     }
 
-    pub unsafe fn save_file_dialog_pointer(browser: *mut cef_browser_t, title: String, initial_file_name: String, filter: String, on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>) {
-        log::debug!("launching save file dialog...");
+    pub unsafe fn run_file_dialog_pointer(
+        browser: *mut cef_browser_t,
+        mode: super::v8_file_dialog_handler::FileDialogMode,
+        title: String,
+        initial_file_name: String,
+        filter: String,
+        on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>,
+    ) {
+        log::debug!("launching file dialog...");
 
         // get our browser host
         let host = (*browser).get_host.unwrap()(browser);
@@ -157,19 +183,31 @@ impl Browser {
         let title = title.as_bytes();
         let title = CString::new(title).unwrap();
         let mut cef_title = cef_string_t::default();
-        cef_string_utf8_to_utf16(title.as_ptr(), title.to_bytes().len() as u64, &mut cef_title);
+        cef_string_utf8_to_utf16(
+            title.as_ptr(),
+            title.to_bytes().len() as u64,
+            &mut cef_title,
+        );
 
         // convert the initial_file_name to a cef string
         let initial_file_name = initial_file_name.as_bytes();
         let initial_file_name = CString::new(initial_file_name).unwrap();
         let mut cef_initial_file_name = cef_string_t::default();
-        cef_string_utf8_to_utf16(initial_file_name.as_ptr(), initial_file_name.to_bytes().len() as u64, &mut cef_initial_file_name);
+        cef_string_utf8_to_utf16(
+            initial_file_name.as_ptr(),
+            initial_file_name.to_bytes().len() as u64,
+            &mut cef_initial_file_name,
+        );
 
         // convert the filter to a cef string
         let filter = filter.as_bytes();
         let filter = CString::new(filter).unwrap();
         let mut cef_filter = cef_string_t::default();
-        cef_string_utf8_to_utf16(filter.as_ptr(), filter.to_bytes().len() as u64, &mut cef_filter);
+        cef_string_utf8_to_utf16(
+            filter.as_ptr(),
+            filter.to_bytes().len() as u64,
+            &mut cef_filter,
+        );
 
         // build the filter list
         let filters = cef_string_list_alloc();
@@ -179,22 +217,49 @@ impl Browser {
         let callback = run_file_dialog_callback::allocate(on_done);
 
         // and run the dialog
-        (*host).run_file_dialog.expect("run_file_dialog is a function")(
+        (*host)
+            .run_file_dialog
+            .expect("run_file_dialog is a function")(
             host,
-            super::bindings::cef_file_dialog_mode_t_FILE_DIALOG_SAVE,
+            match mode {
+                super::v8_file_dialog_handler::FileDialogMode::Open => super::bindings::cef_file_dialog_mode_t_FILE_DIALOG_OPEN,
+                super::v8_file_dialog_handler::FileDialogMode::Save => super::bindings::cef_file_dialog_mode_t_FILE_DIALOG_SAVE,
+            },
             &cef_title,
             &cef_initial_file_name,
             filters,
             0,
-            callback as *mut super::bindings::_cef_run_file_dialog_callback_t
+            callback as *mut super::bindings::_cef_run_file_dialog_callback_t,
         );
     }
 
-    pub fn print_to_pdf<P: AsRef<std::path::Path>>(&self, path: P, on_done: Option<Box<dyn FnMut(bool)>>) {
-        unsafe { Browser::print_to_pdf_pointer(self.browser, path, on_done); }
+    pub fn print_to_pdf<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        on_done: Option<Box<dyn FnMut(bool)>>,
+    ) {
+        unsafe {
+            Browser::print_to_pdf_pointer(self.browser, path, on_done);
+        }
     }
 
-    pub fn save_file_dialog(&self, title: String, initial_file_name: String, filter: String, on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>) {
-        unsafe { Browser::save_file_dialog_pointer(self.browser, title, initial_file_name, filter, on_done); }
+    pub fn run_file_dialog(
+        &self,
+        mode: super::v8_file_dialog_handler::FileDialogMode,
+        title: String,
+        initial_file_name: String,
+        filter: String,
+        on_done: Option<Box<dyn FnMut(Option<std::path::PathBuf>)>>,
+    ) {
+        unsafe {
+            Browser::run_file_dialog_pointer(
+                self.browser,
+                mode,
+                title,
+                initial_file_name,
+                filter,
+                on_done,
+            );
+        }
     }
 }

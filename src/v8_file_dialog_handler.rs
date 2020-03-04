@@ -8,6 +8,11 @@ use super::bindings::{
     cef_v8context_get_current_context, cef_process_message_t, cef_v8value_create_string
 };
 
+pub enum FileDialogMode {
+    Open,
+    Save,
+}
+
 #[repr(C)]
 pub struct V8FileDialogHandler {
     v8_handler: cef_v8handler_t,
@@ -24,6 +29,12 @@ const CODE: &str = r#"
             native function saveFileDialog(title, defaultFileName, filter, onDone, onError);
             return new Promise((resolve, reject) => {
                 saveFileDialog(title, defaultFileName, filter, resolve, reject);
+            });
+        };
+        cef.openFileDialog = function(title, defaultFileName, filter) {
+            native function openFileDialog(title, defaultFileName, filter, onDone, onError);
+            return new Promise((resolve, reject) => {
+                openFileDialog(title, defaultFileName, filter, resolve, reject);
             });
         };
     })();
@@ -48,7 +59,7 @@ pub unsafe fn register_extension(extension: *mut V8FileDialogHandler) {
 }
 
 pub unsafe fn process_message(slf: *mut V8FileDialogHandler, message_name: &str, message: *mut cef_process_message_t) -> bool {
-    if message_name != "save_file_dialog_done" {
+    if message_name != "run_file_dialog_done" {
         return false;
     }
 
@@ -106,7 +117,7 @@ unsafe extern "C" fn execute(
         .map(|r| r.unwrap_or(std::char::REPLACEMENT_CHARACTER))
         .collect::<String>();
 
-    if name == "saveFileDialog" && arguments_count == 5 {
+    if (name == "saveFileDialog" || name == "openFileDialog") && arguments_count == 5 {
         // get the title argument
         let arg_title: *mut cef_v8value_t = *arguments.offset(0);
         let is_string = ((*arg_title).is_string.expect("is_string is a function"))(arg_title) == 1;
@@ -157,7 +168,11 @@ unsafe extern "C" fn execute(
         if let Some(frame) = (*_self).frame {
             // convert the message name to a CEF string
             let mut cef_message_name = cef_string_t::default();
-            let message_name = "save_file_dialog".as_bytes();
+            let message_name = match name.as_ref() {
+                "openFileDialog" => "open_file_dialog".as_bytes(),
+                "saveFileDialog" => "save_file_dialog".as_bytes(),
+                _ => unreachable!(),
+            };
             let message_name = std::ffi::CString::new(message_name).unwrap();
             super::bindings::cef_string_utf8_to_utf16(message_name.as_ptr(), message_name.to_bytes().len() as u64, &mut cef_message_name);
 
