@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .apply()?;
 
     // initialize CEF
-    let mut cef = cef_client::Cef::initialize()?;
+    let mut cef = cef_client::Cef::initialize(Some(8822), true)?;
 
     // load our icon
     use winapi::um::winuser::{MAKEINTRESOURCEW, LoadImageW, IMAGE_ICON, LR_DEFAULTSIZE};
@@ -102,7 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // create our window class
-    use winapi::um::winuser::{WNDCLASSW, CS_HREDRAW, CS_VREDRAW, LoadCursorW, IDC_ARROW, RegisterClassW, CreateWindowExW, WS_OVERLAPPEDWINDOW, ShowWindow, SW_SHOW, GetMessageW, TranslateMessage, DispatchMessageW, SetWindowLongPtrW, GetDesktopWindow, GetWindowRect, SetWindowPos, HWND_TOP, GetClientRect };
+    use winapi::um::winuser::{WNDCLASSW, CS_HREDRAW, CS_VREDRAW, LoadCursorW, IDC_ARROW, RegisterClassW, CreateWindowExW, WS_OVERLAPPEDWINDOW, ShowWindow, SW_SHOW, PeekMessageW, WM_QUIT, PM_REMOVE, TranslateMessage, DispatchMessageW, SetWindowLongPtrW, GetDesktopWindow, GetWindowRect, SetWindowPos, HWND_TOP, GetClientRect };
     use winapi::shared::windef::HBRUSH;
     let class_name: Vec<u16> = "cef-win-print\0".encode_utf16().collect();
     let wnd_class = WNDCLASSW {
@@ -171,24 +171,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // finally, the message loop
     unsafe {
         let mut msg = mem::MaybeUninit::uninit();
+        let mut last_process_time: std::time::Instant = std::time::Instant::now();
+        let frame_period = std::time::Duration::from_secs_f64(1.0 / 60.0);
         'mainloop: loop {
-            let ret = GetMessageW(msg.as_mut_ptr(), ptr::null_mut(), 0, 0);
-            if ret == -1 {
-                log::error!("message error!");
-                return Err(Box::from("TODO: message error"));
+            // use a more "gaming" type loop so that we can process CEF work at least at 60 fps
+            'peekloop: loop {
+                let message_available = PeekMessageW(msg.as_mut_ptr(), ptr::null_mut(), 0, 0, PM_REMOVE);
+                if message_available != 0 {
+                    let msg = msg.assume_init();
+
+                    if msg.message == WM_QUIT {
+                        log::debug!("time to quit!");
+                        break 'mainloop;
+                    }
+
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+                else {
+                    break 'peekloop;
+                }
             }
-            else if ret == 0 {
-                log::debug!("time to quit!");
-                break 'mainloop;
-            }
-            else {
-                let msg = msg.assume_init();
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
-            
+
+            // let CEF do its thing
             if cef.should_do_work() {
                 cef.do_message_loop_work();
+            }
+
+            // make sure we run through the loop at least at 60 fps
+            let now = std::time::Instant::now();
+            let duration = now.duration_since(last_process_time);
+            last_process_time = now;
+            let sleep_time = frame_period.checked_sub(duration);
+            if let Some(sleep_time) = sleep_time {
+                std::thread::sleep(sleep_time);
             }
         }
     }
