@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>CEF File Dialogs Demo</title>
+        <script>
+            function handleOpen() {
+                //cef.openFileDialog("Open", "", ".txt")
+                //.then(function(path) {
+                //    console.log("opening path:", path);
+                //});
+                console.log("cef functions:", cef);
+                
+                cef.saveFileDialog("Save As PDF", "printed_pdf.pdf", "PDF Files|.pdf")
+                .then((path) => {
+                    console.info("saving PDF to path:");
+                    console.info(path);
+                });
+            }
+        </script>
+    </head>
+    <body>
+        <button onclick="handleOpen()">Open</button>
+    </body>
+</html>

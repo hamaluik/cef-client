@@ -15,6 +15,8 @@ pub struct Browser {
     browser: *mut cef_browser_t,
     client: *mut super::client::Client,
     host: *mut cef_browser_host_t,
+    window_info: cef_window_info_t,
+    setbrowser_settingstings: cef_browser_settings_t,
     pub hwnd: HWND,
 }
 
@@ -87,6 +89,8 @@ impl super::Cef {
             client,
             host,
             hwnd: hwnd as HWND,
+            window_info,
+            browser_settings,
         };
         browser
     }
@@ -261,5 +265,9 @@ impl Browser {
                 on_done,
             );
         }
+    }
+
+    pub fn show_dev_tools(&self) {
+        
     }
 }
