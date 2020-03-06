@@ -6,21 +6,24 @@
         <title>CEF File Dialogs Demo</title>
         <script>
             function handleOpen() {
-                //cef.openFileDialog("Open", "", ".txt")
-                //.then(function(path) {
-                //    console.log("opening path:", path);
-                //});
-                console.log("cef functions:", cef);
-                
-                cef.saveFileDialog("Save As PDF", "printed_pdf.pdf", "PDF Files|.pdf")
+                cef.openFileDialog("Open", null, "Text Files|.txt")
                 .then((path) => {
-                    console.info("saving PDF to path:");
+                    console.info("chosen path:");
                     console.info(path);
-                });
+                })
+                .catch((error) => console.error("failed to run save dialog:", error));
+            }
+            function handleSave() {
+                cef.openFileDialog("Save", null, "Text Files|.txt")
+                .then((path) => {
+                    console.info("chosen path:");
+                    console.info(path);
+                })
+                .catch((error) => console.error("failed to run save dialog:", error));
             }
         </script>
     </head>
     <body>
-        <button onclick="handleOpen()">Open</button>
+        <button onclick="handleOpen(); return false;">Open</button>&nbsp;<button onclick="handleSave(); return false;">Save</button>
     </body>
 </html>

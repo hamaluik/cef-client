@@ -1,0 +1,59 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'file-dialogs'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=file-dialogs",
+                    "--package=cef-client"
+                ],
+                "filter": {
+                    "name": "file-dialogs",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/target/debug"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'fullscreen'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=fullscreen",
+                    "--package=cef-client"
+                ],
+                "filter": {
+                    "name": "fullscreen",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/target/debug"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'printing'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=printing",
+                    "--package=cef-client"
+                ],
+                "filter": {
+                    "name": "printing",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/target/debug"
+        },
+    ]
+}

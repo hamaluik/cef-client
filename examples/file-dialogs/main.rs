@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create our window class
     use winapi::um::winuser::{WNDCLASSW, CS_HREDRAW, CS_VREDRAW, LoadCursorW, IDC_ARROW, RegisterClassW, CreateWindowExW, WS_OVERLAPPEDWINDOW, ShowWindow, SW_SHOW, PeekMessageW, WM_QUIT, PM_REMOVE, TranslateMessage, DispatchMessageW, SetWindowLongPtrW, GetDesktopWindow, GetWindowRect, SetWindowPos, HWND_TOP, GetClientRect };
     use winapi::shared::windef::HBRUSH;
-    let class_name: Vec<u16> = "cef-win-print\0".encode_utf16().collect();
+    let class_name: Vec<u16> = "cef-win-file-dialogs\0".encode_utf16().collect();
     let wnd_class = WNDCLASSW {
         style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(wndproc),

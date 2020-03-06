@@ -128,9 +128,10 @@ unsafe extern "C" fn execute(
 
         // get the file name argument
         let arg_file_name: *mut cef_v8value_t = *arguments.offset(1);
-        let is_string = ((*arg_file_name).is_string.expect("is_string is a function"))(arg_file_name) == 1;
-        if !is_string {
-            log::warn!("file name argument isn't a string!");
+        let is_string: bool = ((*arg_file_name).is_string.expect("is_string is a function"))(arg_file_name) == 1;
+        let arg_file_name_is_null: bool = ((*arg_file_name).is_null.expect("is_null is a function"))(arg_file_name) == 1;
+        if !arg_file_name_is_null && !is_string {
+            log::error!("file name argument isn't a string, nor is it null!");
             return 0;
         }
 
@@ -160,7 +161,12 @@ unsafe extern "C" fn execute(
 
         // get the v8 strings as cef strings
         let cef_title: cef_string_userfree_t = ((*arg_title).get_string_value.expect("get_string_value is a function"))(arg_title);
-        let cef_file_name: cef_string_userfree_t = ((*arg_file_name).get_string_value.expect("get_string_value is a function"))(arg_file_name);
+        let cef_file_name: cef_string_userfree_t = if arg_file_name_is_null {
+            super::bindings::cef_string_userfree_utf16_alloc()
+        }
+        else {
+            ((*arg_file_name).get_string_value.expect("get_string_value is a function"))(arg_file_name)
+        };
         let cef_filter: cef_string_userfree_t = ((*arg_filter).get_string_value.expect("get_string_value is a function"))(arg_filter);
 
         // now send an IPC message to the frame process telling it to print
